@@ -38,7 +38,7 @@ type Footnote struct {
 	Text string `json:"text"`
 }
 
-func BLSPrint(data BLSResponse) {
+func BLSPrint(data *BLSResponse) {
 	fmt.Println("Request Status: ", data.Status)
 	for _, series := range data.Results.Series {
 		fmt.Println("Series ID", series.SeriesID)
@@ -46,6 +46,24 @@ func BLSPrint(data BLSResponse) {
 			fmt.Println(data.Year, data.Period, data.Value)
 		}
 	}
+}
+
+func handleResponse(response *http.Response) *BLSResponse {
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return nil
+	}
+
+	// var data map[string]interface{}
+	var responseData BLSResponse
+	if err := json.Unmarshal(body, &responseData); err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return nil
+	}
+
+	return &responseData
 }
 
 func PostRequest(data map[string]interface{}) {
@@ -59,24 +77,14 @@ func PostRequest(data map[string]interface{}) {
 
 	response, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		fmt.Println("Error making Get request", err)
+		fmt.Println("Error making Post request", err)
 		return
 	}
 
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return
-	}
-
-	// var data map[string]interface{}
-	var responseData BLSResponse
-	if err := json.Unmarshal(body, &responseData); err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
-	}
+	// Read the response body
+	responseData := handleResponse(response)
 
 	BLSPrint(responseData)
 
@@ -96,18 +104,7 @@ func GetRequest(seriesID, registrationKey string) {
 	defer response.Body.Close()
 
 	// Read the response body
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return
-	}
-
-	// Unmarshal JSON response
-	var responseData BLSResponse
-	if err := json.Unmarshal(body, &responseData); err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
-	}
+	responseData := handleResponse(response)
 
 	BLSPrint(responseData)
 
@@ -119,6 +116,7 @@ func main() {
 	// Check if any arguments are provided
 	if len(args) > 0 {
 		registry := args[0]
+		method := args[1]
 
 		data := map[string]interface{}{
 			"seriesid":        []string{"CUUR0000SA0"},
@@ -131,8 +129,14 @@ func main() {
 			"registrationkey": registry,
 		}
 
-		GetRequest("CUUR0000SA0", registry)
-		PostRequest(data)
+		if method == "GET" {
+
+			GetRequest("CUUR0000SA0", registry)
+		} else if method == "POST" {
+			PostRequest(data)
+		} else {
+			fmt.Println("Invalid method provided")
+		}
 	} else {
 		fmt.Println("No arguments provided")
 	}
